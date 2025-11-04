@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+*.egg
+*.log
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# Environment/config files
+*.env
+.env.local
+.env.*.local
+config.json
+config.yaml
+
+# OS/system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+*.bak
+
+# Byte-compiled, cache, test artifacts
+.cache/
+.pytest_cache/
+__pycache__/
+.coverage
+htmlcov/
+
+# Deployment files
+build/
+dist/
+*.spec
+
+# Optional: if using Docker
+docker-compose.override.yml
+*.pid
