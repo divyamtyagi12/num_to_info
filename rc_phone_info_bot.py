@@ -1,9 +1,7 @@
 """
-rc_phone_info_bot.py
+rc_phone_info_bot.py - Webhook Version for Render
 A Telegram bot that looks up vehicle RC info via:
     https://vvvin-ng.vercel.app/lookup?rc=<RC_NUMBER>
-
-Optional: phone lookup via a phone-lookup API (placeholder).
 """
 
 import os
@@ -12,15 +10,15 @@ import re
 import requests
 from telegram import Update
 from telegram.constants import ParseMode
-
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-# CONFIG - set these as environment variables for safety, or paste directly (not recommended)
-BOT_TOKEN = "8387493035:AAGU5jshpvyxL5E9M0ajiFKDxw5oF_34gyI"
+# CONFIG
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g., https://your-app.onrender.com
+PORT = int(os.getenv("PORT", 10000))
 
 RC_API_BASE = os.getenv("RC_API_BASE", "https://vvvin-ng.vercel.app/lookup?rc=")
-# Optional phone API example (numverify / abstract etc.)
-PHONE_API_PROVIDER = os.getenv("PHONE_API_PROVIDER", "")  # e.g., "numverify"
+PHONE_API_PROVIDER = os.getenv("PHONE_API_PROVIDER", "")
 PHONE_API_KEY = os.getenv("PHONE_API_KEY", "")
 
 # Logging
@@ -48,14 +46,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def format_rc_response(data: dict) -> str:
-    """
-    Build a readable message from the RC API JSON response.
-    This handles missing keys gracefully.
-    """
+    """Build a readable message from the RC API JSON response."""
     if not data:
         return "❌ No data returned."
 
-    # The RC API responses vary; inspect keys and format best-effort.
     lines = []
     # Ownership
     owner = data.get("owner_name") or data.get("Owner Name") or data.get("Owner") or data.get("owner")
@@ -111,8 +105,7 @@ def format_rc_response(data: dict) -> str:
     if financer: lines.append(f"• *Financer:* {financer}")
     if blacklist: lines.append(f"• *Blacklist:* {blacklist}")
 
-    # If the API contains an "alert" or "expired days" key, show it
-    expired_days = data.get("expired_days") or data.get("Expired Days") or data.get("Expired Days")
+    expired_days = data.get("expired_days") or data.get("Expired Days")
     if expired_days:
         lines.append(f"\n⚠️ *Expired Days:* {expired_days}")
 
@@ -120,15 +113,12 @@ def format_rc_response(data: dict) -> str:
 
 
 async def lookup_rc(rc_number: str) -> dict:
-    """
-    Call the RC API and return JSON (or {} on failure).
-    """
+    """Call the RC API and return JSON (or {} on failure)."""
     try:
         url = RC_API_BASE + requests.utils.quote(rc_number.strip())
         resp = requests.get(url, timeout=12)
         resp.raise_for_status()
         j = resp.json()
-        # The API might wrap data under a key; try to find the useful payload
         if isinstance(j, dict) and ("data" in j and j["data"]):
             return j["data"]
         return j
@@ -138,20 +128,15 @@ async def lookup_rc(rc_number: str) -> dict:
 
 
 async def lookup_phone(phone_number: str) -> dict:
-    """
-    Optional: example phone lookup (placeholder). Implement according to your chosen provider's API.
-    Returns a dict or {'error': '...'}.
-    """
+    """Optional: example phone lookup (placeholder)."""
     if not PHONE_API_KEY:
         return {"error": "Phone lookup not configured."}
-    # Example for numverify (adjust to the provider's docs)
     try:
         if PHONE_API_PROVIDER.lower() == "numverify":
             url = f"http://apilayer.net/api/validate?access_key={PHONE_API_KEY}&number={phone_number}"
             r = requests.get(url, timeout=10)
             r.raise_for_status()
             return r.json()
-        # Add other providers here...
         return {"error": "Provider not implemented in bot."}
     except Exception as e:
         logger.exception("Phone lookup failed")
@@ -163,7 +148,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info("Message from %s: %s", user.username or user.id, text)
 
-    # Decide whether it's RC or Phone by pattern heuristics
+    # Check if it's RC
     if RC_REGEX.match(text.replace(" ", "").upper()):
         rc = text.replace(" ", "").upper()
         await update.message.reply_text(f"🔎 Looking up RC: *{rc}* ...", parse_mode=ParseMode.MARKDOWN)
@@ -178,7 +163,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
         return
 
-    # Phone number fallback (if matches)
+    # Check if it's Phone
     if PHONE_REGEX.match(text):
         phone = text if text.startswith("+") else f"+{text}"
         await update.message.reply_text(f"🔎 Looking up Phone: *{phone}* ...", parse_mode=ParseMode.MARKDOWN)
@@ -186,7 +171,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if pdata.get("error"):
             await update.message.reply_text(f"❌ Phone lookup error: {pdata['error']}")
             return
-        # Format minimal phone info
         lines = []
         valid = pdata.get("valid", None)
         if valid is not None:
@@ -200,7 +184,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\n".join(lines) or "No data found.", parse_mode=ParseMode.MARKDOWN)
         return
 
-    # If neither, ask for correct input
     await update.message.reply_text(
         "❓ I couldn't recognise that input.\n\n"
         "• Send RC like `MH12DE1433` (no spaces) or a phone like `+14155552671`.\n"
@@ -210,8 +193,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    if BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN" or not BOT_TOKEN:
-        print("ERROR: Set the TELEGRAM_BOT_TOKEN environment variable (or edit the script).")
+    if not BOT_TOKEN:
+        print("ERROR: Set TELEGRAM_BOT_TOKEN environment variable.")
+        return
+    
+    if not WEBHOOK_URL:
+        print("ERROR: Set WEBHOOK_URL environment variable (e.g., https://your-app.onrender.com)")
         return
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -219,8 +206,14 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 Bot started. Press Ctrl-C to stop.")
-    app.run_polling()
+    # Set up webhook
+    logger.info(f"Starting webhook on port {PORT}")
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=BOT_TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+    )
 
 
 if __name__ == "__main__":
