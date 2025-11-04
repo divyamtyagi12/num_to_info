@@ -50,3 +50,4 @@ dist/
 # Optional: if using Docker
 docker-compose.override.yml
 *.pid
+".env" 
