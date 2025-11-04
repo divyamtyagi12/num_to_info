@@ -1,9 +1,3 @@
-"""
-rc_phone_info_bot.py - Webhook Version for Render
-A Telegram bot that looks up vehicle RC info via:
-    https://vvvin-ng.vercel.app/lookup?rc=<RC_NUMBER>
-"""
-
 import os
 import logging
 import re
@@ -14,8 +8,6 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 # CONFIG
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g., https://your-app.onrender.com
-PORT = int(os.getenv("PORT", 10000))
 
 RC_API_BASE = os.getenv("RC_API_BASE", "https://vvvin-ng.vercel.app/lookup?rc=")
 PHONE_API_PROVIDER = os.getenv("PHONE_API_PROVIDER", "")
@@ -194,11 +186,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     if not BOT_TOKEN:
+        logger.error("TELEGRAM_BOT_TOKEN not set")
         print("ERROR: Set TELEGRAM_BOT_TOKEN environment variable.")
-        return
-    
-    if not WEBHOOK_URL:
-        print("ERROR: Set WEBHOOK_URL environment variable (e.g., https://your-app.onrender.com)")
         return
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -206,14 +195,11 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Set up webhook
-    logger.info(f"Starting webhook on port {PORT}")
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=BOT_TOKEN,
-        webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
-    )
+    logger.info("🤖 Bot started with polling. Waiting for messages...")
+    print("🤖 Bot started with polling. Press Ctrl-C to stop.")
+    
+    # Use polling - simpler and more reliable
+    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
